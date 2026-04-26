@@ -8,8 +8,8 @@ Sistema de detecção e mapeamento de quedas de árvores utilizando imagens de s
 
 | Recurso | URL |
 |---|---|
-| 🗺️ **Aplicação (frontend)** | https://sposigor.github.io/arvore-alerta/ |
-| 📊 **Diagramas de arquitetura** | https://sposigor.github.io/arvore-alerta/diagrama.html |
+| 🗺️ **Aplicação (frontend)** | https://sposigor.github.io/tcc-arvorealerta/ |
+| 📊 **Diagramas de arquitetura** | https://sposigor.github.io/tcc-arvorealerta/diagrama.html |
 | ⚙️ **API (Swagger / docs)** | https://arvore-alerta-production.up.railway.app/docs |
 | 📈 **Estatísticas em tempo real** | https://arvore-alerta-production.up.railway.app/stats |
 | ⏱️ **Status do scheduler** | https://arvore-alerta-production.up.railway.app/cron/status |
