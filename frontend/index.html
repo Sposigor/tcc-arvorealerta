@@ -456,6 +456,12 @@
       </select>
     </div>
 
+    <!-- Abas -->
+    <div class="tabs">
+      <button class="tab-btn active-sat" id="tab-sat" onclick="mudarAba('sat')">🛰️ Satélite</button>
+      <button class="tab-btn" id="tab-waze" onclick="mudarAba('waze')">📢 Cidadão</button>
+    </div>
+
     <!-- Análise Sentinel-2 -->
     <div class="tab-panel visible" id="panel-sat">
       <div class="panel-section">
@@ -609,6 +615,49 @@
         <div class="empty-state"><div class="empty-icon">🛰️</div>Nenhuma ocorrência no período selecionado.</div>
       </div>
     </div>
+
+    <!-- Reporte do Cidadão -->
+    <div class="tab-panel" id="panel-waze">
+      <div class="panel-section">
+        <div class="section-title">Reportar queda de árvore</div>
+
+        <div class="coord-row">
+          <div class="field-group">
+            <span class="field-label">Latitude</span>
+            <input type="number" id="wz-lat" placeholder="-23.550" step="any"/>
+          </div>
+          <div class="field-group">
+            <span class="field-label">Longitude</span>
+            <input type="number" id="wz-lng" placeholder="-46.633" step="any"/>
+          </div>
+        </div>
+
+        <div class="field-group" style="margin-top:6px;">
+          <span class="field-label">Cidade / Bairro (opcional)</span>
+          <div class="autocomplete-wrap">
+            <input type="text" id="wz-cidade" placeholder="Ex: São Paulo — Vila Madalena" autocomplete="off"/>
+            <div class="suggestions-list" id="wz-cidade-list"></div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <span class="field-label">Descrição (opcional)</span>
+          <textarea id="wz-desc" rows="2" placeholder="Ex: Árvore caída bloqueando a calçada..."></textarea>
+        </div>
+
+        <p class="hint-text">💡 Clique no mapa para preencher as coordenadas. Se já houver um reporte próximo, ele será confirmado automaticamente.</p>
+
+        <button class="btn btn-waze" id="btn-waze" onclick="reportarUsuario()">📢 Reportar Queda</button>
+        <div class="status-bar" id="status-waze"></div>
+      </div>
+
+      <div class="list-header">
+        <span class="list-title">Reportes da comunidade</span>
+      </div>
+      <div class="ocorrencias-list" id="list-waze">
+        <div class="empty-state"><div class="empty-icon">📢</div>Nenhum reporte da comunidade ainda.</div>
+      </div>
+    </div>
   </aside>
 
   <div class="map-wrap">
@@ -696,13 +745,24 @@ map.addLayer(clusterGroup);
 
 map.on("click", (e) => {
   const { lat, lng } = e.latlng;
-  document.getElementById("sat-lat").value = lat.toFixed(6);
-  document.getElementById("sat-lng").value = lng.toFixed(6);
-  reverseGeocode(lat, lng, document.getElementById("sat-cidade"));
-  if (selectedMarker) map.removeLayer(selectedMarker);
-  selectedMarker = L.circleMarker([lat, lng], {
-    radius: 7, color: "#52b788", fillColor: "#52b788", fillOpacity: 0.45, weight: 2,
-  }).addTo(map).bindPopup("📍 Local selecionado").openPopup();
+  const abaWaze = document.getElementById("panel-waze")?.classList.contains("visible");
+  if (abaWaze) {
+    document.getElementById("wz-lat").value = lat.toFixed(6);
+    document.getElementById("wz-lng").value = lng.toFixed(6);
+    reverseGeocode(lat, lng, document.getElementById("wz-cidade"));
+    if (selectedMarker) map.removeLayer(selectedMarker);
+    selectedMarker = L.circleMarker([lat, lng], {
+      radius: 7, color: "#fca130", fillColor: "#fca130", fillOpacity: 0.45, weight: 2,
+    }).addTo(map).bindPopup("📍 Local selecionado").openPopup();
+  } else {
+    document.getElementById("sat-lat").value = lat.toFixed(6);
+    document.getElementById("sat-lng").value = lng.toFixed(6);
+    reverseGeocode(lat, lng, document.getElementById("sat-cidade"));
+    if (selectedMarker) map.removeLayer(selectedMarker);
+    selectedMarker = L.circleMarker([lat, lng], {
+      radius: 7, color: "#52b788", fillColor: "#52b788", fillOpacity: 0.45, weight: 2,
+    }).addTo(map).bindPopup("📍 Local selecionado").openPopup();
+  }
 });
 
 // -------------------------------------------------------
@@ -1119,6 +1179,101 @@ function setupAutocomplete(inputId, listId) {
 }
 
 setupAutocomplete("sat-cidade", "sat-cidade-list");
+setupAutocomplete("wz-cidade",  "wz-cidade-list");
+
+// -------------------------------------------------------
+// ABAS
+// -------------------------------------------------------
+function mudarAba(aba) {
+  document.getElementById("panel-sat").classList.toggle("visible", aba === "sat");
+  document.getElementById("panel-waze").classList.toggle("visible", aba === "waze");
+  document.getElementById("tab-sat").className  = "tab-btn" + (aba === "sat"  ? " active-sat"  : "");
+  document.getElementById("tab-waze").className = "tab-btn" + (aba === "waze" ? " active-waze" : "");
+  if (aba === "waze") carregarReportesUsuario();
+}
+
+// -------------------------------------------------------
+// CIDADÃO — Reportar queda
+// -------------------------------------------------------
+async function reportarUsuario() {
+  const lat  = parseFloat(document.getElementById("wz-lat").value);
+  const lng  = parseFloat(document.getElementById("wz-lng").value);
+  if (isNaN(lat) || isNaN(lng)) {
+    setStatus("status-waze", "Clique no mapa ou insira as coordenadas.", "error"); return;
+  }
+
+  const btn = document.getElementById("btn-waze");
+  btn.disabled = true;
+  setStatus("status-waze", "📢 Enviando reporte...", "loading");
+
+  try {
+    const body = {
+      latitude:  lat,
+      longitude: lng,
+      descricao: document.getElementById("wz-desc").value   || null,
+      cidade:    document.getElementById("wz-cidade").value || null,
+    };
+    const res  = await fetch(`${API}/usuario/reportar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    setStatus("status-waze", `✅ ${data.mensagem}`, "success");
+
+    // Limpa form
+    document.getElementById("wz-desc").value   = "";
+    document.getElementById("wz-cidade").value = "";
+
+    if (selectedMarker) { map.removeLayer(selectedMarker); selectedMarker = null; }
+    await carregarReportesUsuario();
+  } catch {
+    setStatus("status-waze", `❌ Erro ao enviar. Verifique se o backend está em ${API}`, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function confirmarReporte(id, e) {
+  e.stopPropagation();
+  await fetch(`${API}/usuario/reportes/${id}/confirmar`, { method: "POST" });
+  await carregarReportesUsuario();
+}
+
+async function carregarReportesUsuario() {
+  try {
+    const dias = document.getElementById("mapa-periodo").value;
+    const res  = await fetch(`${API}/usuario/reportes?dias=${dias}`);
+    const reportes = await res.json();
+    renderWaze(reportes);
+  } catch { /* silencioso */ }
+}
+
+function renderWaze(reportes) {
+  const lista = document.getElementById("list-waze");
+  if (!reportes.length) {
+    lista.innerHTML = `<div class="empty-state"><div class="empty-icon">📢</div>Nenhum reporte da comunidade ainda.</div>`;
+    return;
+  }
+  lista.innerHTML = "";
+  reportes.forEach(r => {
+    const card = document.createElement("div");
+    card.className = "oc-card waze";
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="card-id">#${r.id} · ${new Date(r.criado_em).toLocaleDateString("pt-BR")}</span>
+        <span class="badge badge-waze">cidadão</span>
+      </div>
+      ${r.descricao ? `<div class="card-desc">${r.descricao}</div>` : ""}
+      ${r.cidade    ? `<div class="card-coord">🏙️ ${r.cidade}</div>` : ""}
+      <div class="card-coord">📍 ${r.latitude.toFixed(4)}, ${r.longitude.toFixed(4)}</div>
+      <div class="card-coord" style="margin-top:2px">👥 ${r.confirmacoes} confirmação(ões)</div>
+      <button class="btn-confirmar" onclick="confirmarReporte(${r.id}, event)">👍 Confirmar também</button>
+    `;
+    card.onclick = () => map.flyTo([r.latitude, r.longitude], 16, { duration: 1 });
+    lista.appendChild(card);
+  });
+}
 
 // -------------------------------------------------------
 // INICIAR
