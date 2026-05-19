@@ -1,0 +1,29 @@
+name: Lembrete — Desligar Railway
+
+on:
+  schedule:
+    - cron: "0 12 31 5 *"   # 31/05 às 09:00 BRT (12:00 UTC)
+  workflow_dispatch:          # permite disparar manualmente para testar
+
+jobs:
+  abrir-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              title: "🔴 Lembrete: desligar serviço Railway",
+              body: [
+                "## Checklist de desligamento",
+                "",
+                "- [ ] Exportar banco SQLite (`GET /ocorrencias/exportar?formato=csv`)",
+                "- [ ] Exportar série NDVI histórica (`GET /satelite/ndvi-historico/exportar?formato=csv`)",
+                "- [ ] Pausar ou deletar o serviço no painel Railway",
+                "- [ ] Revogar variáveis de ambiente (CDSE_USER, CDSE_PASS, FIRMS_MAP_KEY)",
+                "",
+                "> Custo evitado: ~US$ 5/mês",
+              ].join("\n"),
+            });
